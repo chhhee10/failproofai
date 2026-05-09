@@ -69,11 +69,12 @@ describe("getOpenCodeProjects", () => {
     const projects = await getOpenCodeProjects();
     expect(projects).toHaveLength(2);
     // Newest first — p1 has time_updated=200, p2 has 50.
-    expect(projects[0].name).toBe("repo"); // basename(/repo) — name was null
+    // `name` is the URL slug = encodeFolderName(worktree) — matches every other CLI.
+    expect(projects[0].name).toBe("-repo");
     expect(projects[0].path).toBe("/repo");
     expect(projects[0].cli).toEqual(["opencode"]);
     expect(projects[0].lastModified.getTime()).toBe(200);
-    expect(projects[1].name).toBe("Other Project");
+    expect(projects[1].name).toBe("-other");
     expect(projects[1].lastModified.getTime()).toBe(50);
   });
 
@@ -86,7 +87,7 @@ describe("getOpenCodeProjects", () => {
     ]);
     const projects = await getOpenCodeProjects();
     expect(projects).toHaveLength(1);
-    expect(projects[0].name).toBe("Empty Project");
+    expect(projects[0].name).toBe("-repo");
     expect(projects[0].lastModified.getTime()).toBe(10);
   });
 

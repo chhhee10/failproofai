@@ -22,7 +22,6 @@
  *       https://opencode.ai/docs/plugins/  (plugin model context)
  */
 import { execFileSync } from "node:child_process";
-import { basename } from "node:path";
 import { encodeFolderName } from "./paths";
 import type { ProjectFolder, SessionFile } from "./projects";
 import { runtimeCache } from "./runtime-cache";
@@ -91,10 +90,11 @@ function readProjectRows(): OpenCodeProjectRow[] | null {
 
 /**
  * Group sessions by `project_id` and produce one ProjectFolder per project.
- * The folder name comes from `project.name` when set, else `basename(worktree)`,
- * else the project_id (last-resort). `lastModified` is the max session
- * `time_updated` for that project (or the project's own time_updated if no
- * sessions exist yet).
+ * The folder name is `encodeFolderName(worktree)` (matches every other CLI's
+ * URL-slug encoding so the dashboard's `/project/[name]` route resolves), or
+ * the project_id when no worktree is recorded. `lastModified` is the max
+ * session `time_updated` for that project (or the project's own time_updated
+ * if no sessions exist yet).
  */
 export async function getOpenCodeProjects(): Promise<ProjectFolder[]> {
   const sessions = readSessionRows();
@@ -122,13 +122,15 @@ export async function getOpenCodeProjects(): Promise<ProjectFolder[]> {
 
   // Emit one ProjectFolder per project that has at least one session OR a
   // project row (covers projects opencode knows about but hasn't run yet).
+  // `name` is the dashboard's URL slug — must be `encodeFolderName(cwd)` to
+  // match every other CLI (and the resolver in `getOpenCodeSessionsByEncodedName`).
   const seen = new Set<string>();
   const out: ProjectFolder[] = [];
   for (const [projectId, group] of groups) {
     seen.add(projectId);
     const proj = projectMap.get(projectId);
     const worktree = proj?.worktree ?? group.rows[0]?.directory ?? null;
-    const name = proj?.name?.trim() || (worktree ? basename(worktree) : projectId);
+    const name = worktree ? encodeFolderName(worktree) : projectId;
     const path = worktree ?? "";
     const lastModified = new Date(Math.max(group.latest, proj?.time_updated ?? 0));
     out.push({
@@ -143,7 +145,7 @@ export async function getOpenCodeProjects(): Promise<ProjectFolder[]> {
   for (const p of projects ?? []) {
     if (seen.has(p.id)) continue;
     const worktree = p.worktree ?? "";
-    const name = p.name?.trim() || (worktree ? basename(worktree) : p.id);
+    const name = worktree ? encodeFolderName(worktree) : p.id;
     const lastModified = new Date(p.time_updated);
     out.push({
       name,

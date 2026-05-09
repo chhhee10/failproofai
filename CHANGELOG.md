@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.0.10-beta.10 — 2026-05-09
+
+### Fixes
+- Route OpenCode project pages by encoded cwd (`encodeFolderName(worktree)`) instead of opencode's project name / basename, fixing the dashboard `/project/<slug>` 404 for OpenCode-only sessions and merging same-cwd OpenCode + other-CLI rows on the Projects page (#335).
+- `.failproofai/policies/workflow-policies.mjs`: drop the `## Unreleased` section; new `release-prep-check` policy + updated `changelog-check` instruct the agent to put entries under a dated `## <version> — <YYYY-MM-DD>` heading so each PR ships release-ready, and all four workflow policies now anchor command-phrase matches to shell boundaries to avoid false-positives from HEREDOC bodies (#335).
 
 ## 0.0.10-beta.9 — 2026-05-09
 
