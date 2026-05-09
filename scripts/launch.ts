@@ -1,7 +1,6 @@
 /**
  * Shared launch logic for dev.ts and start.ts.
  */
-import { getDefaultClaudeProjectsPath } from "../lib/paths";
 import { spawn } from "child_process";
 import { realpathSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
@@ -11,30 +10,40 @@ import { diagnoseShadow } from "./install-diagnosis.mjs";
 import { version } from "../package.json";
 
 export function launch(mode: "dev" | "start"): void {
-  const { claudeProjectsPath: parsedPath, loggingLevel, disableTelemetry, allowedDevOrigins, remainingArgs } = parseScriptArgs(process.argv.slice(2));
+  const { loggingLevel, disableTelemetry, allowedDevOrigins, remainingArgs } = parseScriptArgs(process.argv.slice(2));
 
-  console.log(`
-    ______      _ __                       ____   ___    ____
-   / ____/___ _(_) /___  _________  ____  / __/  /   |  /  _/
-  / /_  / __ \`/ / / __ \\/ ___/ __ \\/ __ \\/ /_   / /| |  / /
- / __/ / /_/ / / / /_/ / /  / /_/ / /_/ / __/  / ___ |_/ /
-/_/    \\__,_/_/_/ .___/_/   \\____/\\____/_/    /_/  |_/___/
-               /_/   v${version}
-`);
+  // Hand-crafted pixel-block wordmark mirroring the hosted PNG logo at
+  // https://d2wq11aau0arks.cloudfront.net/failproof/logo-wordmark.png —
+  // chunky lowercase "failproof ai" compressed with Unicode 2x2 quadrant
+  // block characters (▖▗▘▙▚▛▜▝▞▟ + ▀ ▄ █ ▌ ▐) and then horizontally
+  // scaled 4:3 (every 4th source-pixel column dropped) so the full
+  // wordmark fits in ~75 cols × ~10 rows — clean on any standard ≥80-col
+  // terminal.
+  const bannerLines = [
+    "      ███                                                ▐███            ▐█",
+    "    ▐█▛▀▀         ▟█▖                                   ▟█▛▀▀            ▝▀",
+    "   ██████ ▗████▌ ▝██▛ ██   ███    ▐██▙  ▗███    ▐██▙  ▗█████▙     ████▌  ▐█",
+    "   ▀▜█▛▀▀ ▝▀▀▀▀█▙ ▄▙  ██ ▗▟▀▀▜▄▖ ▄▟▀▀▘ ▄▟▛▀▜▙▖ ▄█▀▀█▄▖▝▀██▛▀▀     ▀▀▀▀▙▄ ▐█",
+    "    ▐█▌   ▗██████ ███ ██ ▐█  ▐█▌ ██    ██▌ ▐█▌ ██  ██▌  ██▌       ██████ ▐█",
+    "    ▐█▌   ▐█▛▀▀██ ██▀ ██ ▐█  ▐█▌ ██    ██▌ ▐█▌ ██  ██▌  ██▌       █▛▀▀██ ▐█",
+    "    ▐█▌   ▝▀█████ ██▄▄██ ▐████▀▘ ██    ▀▜███▀▘ ▀▜███▀▘  ██▌       ▀█████ ▐█",
+    "    ▝▀▘     ▀▀▀▀▀ ▀▀▀▀▀▀ ▐█▀▀▀   ▀▀     ▝▀▀▀    ▝▀▀▀    ▀▀▘        ▀▀▀▀▀ ▝▀",
+    "                         ▐█",
+    "                         ▝▀",
+  ];
+  // Fall back to plain text on narrow terminals so the wide pixel-block art
+  // doesn't wrap and shred itself. process.stdout.columns is undefined when
+  // stdout isn't a TTY (piped, captured, redirected to a file), in which case
+  // there's no width to compare against and we keep the full art as-is.
+  const bannerWidth = bannerLines.reduce((w, l) => Math.max(w, l.length), 0);
+  const cols = process.stdout.columns;
+  const banner = cols !== undefined && cols < bannerWidth
+    ? "  failproof ai"
+    : bannerLines.join("\n");
+  console.log(`\n${banner}\n\n  v${version}\n`);
   console.log(`  ⭐ Star us:      https://github.com/exospherehost/failproofai`);
   console.log(`  📖 Docs:         https://befailproof.ai`);
   console.log(`  💬 Slack:        https://join.slack.com/t/failproofai/shared_invite/zt-3v63b7k5e-O3NBHmj8X6n9gZSGDx6ggQ\n`);
-
-  let claudeProjectsPath = parsedPath;
-
-  if (!claudeProjectsPath) {
-    claudeProjectsPath = getDefaultClaudeProjectsPath();
-    console.log(`Using default .claude projects path: ${claudeProjectsPath}`);
-  } else {
-    console.log(`Using custom .claude projects path: ${claudeProjectsPath}`);
-  }
-
-  process.env.CLAUDE_PROJECTS_PATH = claudeProjectsPath;
 
   let cmd: string;
   let cmdArgs: string[];
@@ -98,7 +107,6 @@ export function launch(mode: "dev" | "start"): void {
     stdio: "inherit",
     env: {
       ...process.env,
-      CLAUDE_PROJECTS_PATH: claudeProjectsPath,
       ...(loggingLevel ? { FAILPROOFAI_LOG_LEVEL: loggingLevel } : {}),
       ...(disableTelemetry ? { FAILPROOFAI_TELEMETRY_DISABLED: "1" } : {}),
       ...(allowedDevOrigins ? { FAILPROOFAI_ALLOWED_DEV_ORIGINS: allowedDevOrigins.join(",") } : {}),

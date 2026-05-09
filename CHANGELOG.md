@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+- `scripts/launch.ts`: redesign the dashboard-startup ASCII banner to mirror the hosted PNG wordmark — hand-crafted chunky pixel-block lowercase "failproof ai" compressed with Unicode 2x2 quadrant block characters (▖▗▘▙▚▛▜▝▞▟ + ▀ ▄ █ ▌ ▐) and horizontally scaled 4:3 so the full wordmark fits in ~75 cols × ~10 rows (clean on any standard ≥80-col terminal), with a plain-text fallback for narrower windows. Also drops the "Using default .claude projects path: …" log line at startup — it printed unconditionally on every dashboard launch and added no signal (#322).
+- Remove the undocumented `--projects-path <path>` / `-p <path>` CLI flag from `scripts/parse-script-args.ts` and the corresponding plumbing in `scripts/launch.ts` (custom-path branch + log line + spawn-env override). Custom Claude project folders can still be pointed at via the `CLAUDE_PROJECTS_PATH` environment variable, which `lib/paths.ts:getClaudeProjectsPath` already honors. `docs/cli/dashboard.mdx` updated to reflect the env-var-only path; tests in `__tests__/scripts/parse-script-args.test.ts` trimmed to drop the 6 cases that exercised the removed flag (#322).
+
 ### Docs
 - Rewrite the English `README.md`: new layout with shields.io badges (npm / CI / Slack / Docs / License), a CDN-hosted wordmark logo, the translation strip pulled back up to the header alongside the badges, the existing 7-CLI logo grid (Claude / Codex / Copilot / Cursor / OpenCode / Pi / Gemini) preserved with its install hint and beta caveat, a tighter "What it stops" table that leans on the git policies (`block-push-master` / `block-force-push` / `block-work-on-main` / `block-rm-rf` / `sanitize-api-keys`), a "License" section explaining the MIT + Commons Clause split, and a documentation index linking to docs.befailproof.ai. The hero GIF is the new `readme-arch-hq.gif` (added in this PR); the old `failproofai-hq.gif` is removed. The 14 translated `docs/i18n/README.*.md` files were swapped to the new GIF filename in the same PR — their structural rewrite is left to the next `translate-docs` workflow run on `main` (#321).
 
