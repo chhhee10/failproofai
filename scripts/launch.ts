@@ -12,35 +12,11 @@ import { version } from "../package.json";
 export function launch(mode: "dev" | "start"): void {
   const { loggingLevel, disableTelemetry, allowedDevOrigins, remainingArgs } = parseScriptArgs(process.argv.slice(2));
 
-  // Hand-crafted pixel-block wordmark mirroring the hosted PNG logo at
-  // https://d2wq11aau0arks.cloudfront.net/failproof/logo-wordmark.png —
-  // chunky lowercase "failproof ai" compressed with Unicode 2x2 quadrant
-  // block characters (▖▗▘▙▚▛▜▝▞▟ + ▀ ▄ █ ▌ ▐) and then horizontally
-  // scaled 4:3 (every 4th source-pixel column dropped) so the full
-  // wordmark fits in ~75 cols × ~10 rows — clean on any standard ≥80-col
-  // terminal.
-  const bannerLines = [
-    "      ███                                                ▐███            ▐█",
-    "    ▐█▛▀▀         ▟█▖                                   ▟█▛▀▀            ▝▀",
-    "   ██████ ▗████▌ ▝██▛ ██   ███    ▐██▙  ▗███    ▐██▙  ▗█████▙     ████▌  ▐█",
-    "   ▀▜█▛▀▀ ▝▀▀▀▀█▙ ▄▙  ██ ▗▟▀▀▜▄▖ ▄▟▀▀▘ ▄▟▛▀▜▙▖ ▄█▀▀█▄▖▝▀██▛▀▀     ▀▀▀▀▙▄ ▐█",
-    "    ▐█▌   ▗██████ ███ ██ ▐█  ▐█▌ ██    ██▌ ▐█▌ ██  ██▌  ██▌       ██████ ▐█",
-    "    ▐█▌   ▐█▛▀▀██ ██▀ ██ ▐█  ▐█▌ ██    ██▌ ▐█▌ ██  ██▌  ██▌       █▛▀▀██ ▐█",
-    "    ▐█▌   ▝▀█████ ██▄▄██ ▐████▀▘ ██    ▀▜███▀▘ ▀▜███▀▘  ██▌       ▀█████ ▐█",
-    "    ▝▀▘     ▀▀▀▀▀ ▀▀▀▀▀▀ ▐█▀▀▀   ▀▀     ▝▀▀▀    ▝▀▀▀    ▀▀▘        ▀▀▀▀▀ ▝▀",
-    "                         ▐█",
-    "                         ▝▀",
-  ];
-  // Fall back to plain text on narrow terminals so the wide pixel-block art
-  // doesn't wrap and shred itself. process.stdout.columns is undefined when
-  // stdout isn't a TTY (piped, captured, redirected to a file), in which case
-  // there's no width to compare against and we keep the full art as-is.
-  const bannerWidth = bannerLines.reduce((w, l) => Math.max(w, l.length), 0);
-  const cols = process.stdout.columns;
-  const banner = cols !== undefined && cols < bannerWidth
-    ? "  failproof ai"
-    : bannerLines.join("\n");
-  console.log(`\n${banner}\n\n  v${version}\n`);
+  // Plain-text title + a labeled `Version` line that lines up with the
+  // `Star us` / `Docs` / `Slack` lines below (all four labels pad to the
+  // same column so the values form a clean right-hand column).
+  console.log(`\n  failproof ai\n`);
+  console.log(`  📦 Version:      ${version}`);
   console.log(`  ⭐ Star us:      https://github.com/exospherehost/failproofai`);
   console.log(`  📖 Docs:         https://befailproof.ai`);
   console.log(`  💬 Slack:        https://join.slack.com/t/failproofai/shared_invite/zt-3v63b7k5e-O3NBHmj8X6n9gZSGDx6ggQ\n`);
