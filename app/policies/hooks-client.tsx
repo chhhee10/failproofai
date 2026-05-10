@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef, useTransition } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef, useTransition } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
@@ -21,6 +21,7 @@ import { getHookActivityAction, searchHookActivityAction } from "@/app/actions/g
 import type { HookActivityPayload } from "@/app/actions/get-hook-activity";
 import { getHooksConfigAction } from "@/app/actions/get-hooks-config";
 import type { HooksConfigPayload, PolicyInfo, CustomPolicyInfo } from "@/app/actions/get-hooks-config";
+import type { IntegrationType } from "@/src/hooks/types";
 import { togglePolicyAction } from "@/app/actions/update-hooks-config";
 import { installHooksWebAction, removeHooksWebAction } from "@/app/actions/install-hooks-web";
 import { updatePolicyParamsAction } from "@/app/actions/update-policy-params";
@@ -950,23 +951,66 @@ function PoliciesTab({ onHooksInstallChange }: { onHooksInstallChange?: (install
   const [actionError, setActionError] = useState<string | null>(null);
   const [hooksWarning, setHooksWarning] = useState<string | null>(null);
   const [configuringPolicy, setConfiguringPolicy] = useState<PolicyInfo | null>(null);
+  const [checkedClis, setCheckedClis] = useState<Set<IntegrationType>>(() => new Set());
+  const cliCheckboxesInitializedRef = useRef(false);
 
   const reload = useCallback(async () => {
     try {
       const data = await getHooksConfigAction();
       setConfig(data);
-      onHooksInstallChange?.(data.installedScopes.length > 0);
+      onHooksInstallChange?.(data.clis.some((c) => c.installed));
     } catch {
       // Non-critical
     }
   }, [onHooksInstallChange]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { reload(); }, [reload]);
+
+  // Sync the checkbox set with payload. On first load only, pre-check
+  // detected-but-not-installed CLIs so a fresh user lands ready for one-click
+  // install. After that, sync strictly to `installed` so unchecking a still-
+  // detected CLI and clicking Apply doesn't re-tick the box on reload.
+  useEffect(() => {
+    if (!config) return;
+    if (!cliCheckboxesInitializedRef.current) {
+      cliCheckboxesInitializedRef.current = true;
+      setCheckedClis(new Set(config.clis.filter((c) => c.installed || c.detected).map((c) => c.id)));
+    } else {
+      setCheckedClis(new Set(config.clis.filter((c) => c.installed).map((c) => c.id)));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config?.clis]);
+
+  const installedCliSet = useMemo(
+    () => new Set((config?.clis ?? []).filter((c) => c.installed).map((c) => c.id)),
+    [config?.clis],
+  );
+
+  const pendingChanges = useMemo(() => {
+    const toInstall: IntegrationType[] = [];
+    const toRemove: IntegrationType[] = [];
+    for (const cli of config?.clis ?? []) {
+      const isChecked = checkedClis.has(cli.id);
+      if (isChecked && !installedCliSet.has(cli.id)) toInstall.push(cli.id);
+      if (!isChecked && installedCliSet.has(cli.id)) toRemove.push(cli.id);
+    }
+    return { toInstall, toRemove };
+  }, [config?.clis, checkedClis, installedCliSet]);
+
+  const hasPendingChanges = pendingChanges.toInstall.length > 0 || pendingChanges.toRemove.length > 0;
+
+  const toggleCli = (id: IntegrationType) => {
+    setCheckedClis((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const handleToggle = (name: string, currentlyEnabled: boolean) => {
     if (!config) return;
-    const installed = config.installedScopes.length > 0;
+    const installed = config.clis.some((c) => c.installed);
     if (!installed) {
       setHooksWarning("Policies are not installed. Install policies to continue.");
       return;
@@ -995,26 +1039,39 @@ function PoliciesTab({ onHooksInstallChange }: { onHooksInstallChange?: (install
     });
   };
 
-  const handleInstall = () => {
+  const handleApply = () => {
+    const { toInstall, toRemove } = pendingChanges;
+    if (toInstall.length === 0 && toRemove.length === 0) return;
     startTransition(async () => {
       try {
         setActionError(null);
-        await installHooksWebAction("user");
-        await reload();
+        if (toInstall.length > 0) await installHooksWebAction("user", toInstall);
+        if (toRemove.length > 0) await removeHooksWebAction("user", toRemove);
       } catch (e) {
-        setActionError(e instanceof Error ? e.message : "Failed to install hooks.");
+        setActionError(e instanceof Error ? e.message : "Failed to apply changes.");
+      } finally {
+        // Always resync so a partial-success batch (install OK, remove failed)
+        // doesn't leave the UI showing stale install state on the next click.
+        await reload();
       }
     });
   };
 
-  const handleRemove = () => {
+  const handleReinstall = () => {
+    // Reinstall acts on the intersection of checked × installed. Detected-but-
+    // not-installed CLIs are pre-checked as a one-click install hint, so a raw
+    // Array.from(checkedClis) would silently install brand-new CLIs from the
+    // Reinstall button. Use Apply for first-time installs.
+    const targets = Array.from(installedCliSet).filter((id) => checkedClis.has(id));
+    if (targets.length === 0) return;
     startTransition(async () => {
       try {
         setActionError(null);
-        await removeHooksWebAction("user");
-        await reload();
+        await installHooksWebAction("user", targets);
       } catch (e) {
-        setActionError(e instanceof Error ? e.message : "Failed to remove hooks.");
+        setActionError(e instanceof Error ? e.message : "Failed to reinstall.");
+      } finally {
+        await reload();
       }
     });
   };
@@ -1042,7 +1099,9 @@ function PoliciesTab({ onHooksInstallChange }: { onHooksInstallChange?: (install
     );
   }
 
-  const installed = config.installedScopes.length > 0;
+  const installed = config.clis.some((c) => c.installed);
+  const installedCount = installedCliSet.size;
+  const checkedCount = checkedClis.size;
 
   // Group policies by category
   const categories = Array.from(new Set(config.policies.map((p) => p.category)));
@@ -1057,43 +1116,168 @@ function PoliciesTab({ onHooksInstallChange }: { onHooksInstallChange?: (install
       />
     )}
     <div className="bg-card border border-border rounded-lg overflow-hidden">
-      {/* Install status banner */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/10">
-        <div className="flex items-center gap-2.5">
-          <span
-            className={`h-2 w-2 rounded-full shrink-0 ${installed ? "bg-emerald-500" : "bg-muted-foreground/50"}`}
-          />
-          <span className="text-sm text-foreground">
-            {installed ? "Policies installed" : "Policies not installed"}
-          </span>
-          {installed && (
-            <span className="text-xs text-muted-foreground font-mono hidden sm:inline">
-              · {config.installedScopes.join(", ")} scope · {config.settingsPath}
+      {/* CLI control panel — header */}
+      <div className="flex items-center justify-between gap-4 px-5 py-3.5 border-b border-border/60 bg-muted/10">
+        <div className="flex items-center gap-3 min-w-0 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span
+              className={`h-2 w-2 rounded-full transition-shadow ${
+                installed
+                  ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]"
+                  : "bg-muted-foreground/40"
+              }`}
+              aria-hidden
+            />
+            <span className="text-[0.65rem] uppercase tracking-[0.2em] font-mono text-foreground/90">
+              Integrations
             </span>
+          </div>
+          <span className="text-[0.65rem] font-mono text-muted-foreground/40">·</span>
+          <div className="text-[0.65rem] uppercase tracking-[0.2em] font-mono text-muted-foreground">
+            <span className="text-foreground tabular-nums">
+              {installedCount.toString().padStart(2, "0")}
+            </span>
+            <span className="opacity-50"> / 0{config.clis.length} active</span>
+          </div>
+          {hasPendingChanges && (
+            <>
+              <span className="text-[0.65rem] font-mono text-muted-foreground/40">·</span>
+              <span className="inline-flex items-center gap-1.5 text-[0.65rem] uppercase tracking-[0.2em] font-mono text-pink-400">
+                <span className="h-1 w-1 rounded-full bg-pink-400 animate-pulse" />
+                {pendingChanges.toInstall.length + pendingChanges.toRemove.length} pending
+              </span>
+            </>
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {installed && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRemove}
-              disabled={isPending}
-              className="text-xs h-7 px-3"
-            >
-              Remove
-            </Button>
-          )}
           <Button
-            variant={installed ? "outline" : "default"}
+            variant="outline"
             size="sm"
-            onClick={handleInstall}
-            disabled={isPending}
-            className="text-xs h-7 px-3"
+            onClick={handleReinstall}
+            disabled={isPending || checkedCount === 0}
+            className="text-xs h-7 px-3 font-mono"
           >
-            {installed ? "Reinstall" : "Install policies"}
+            Reinstall
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleApply}
+            disabled={isPending || !hasPendingChanges}
+            className="text-xs h-7 px-3 font-mono"
+          >
+            Apply changes
           </Button>
         </div>
+      </div>
+
+      {/* CLI rows */}
+      <div className="divide-y divide-border/30 border-b border-border/60">
+        {config.clis.map((cli, i) => {
+          const isChecked = checkedClis.has(cli.id);
+          const isInstalled = installedCliSet.has(cli.id);
+          const willChange = isChecked !== isInstalled;
+          const badge = getCliBadgeClasses(cli.id);
+          const accentClass =
+            badge.split(" ").find((c) => c.startsWith("text-")) ?? "text-foreground";
+
+          return (
+            <label
+              key={cli.id}
+              className={`group relative flex items-center gap-3 pl-6 pr-5 py-3 cursor-pointer transition-colors hover:bg-muted/15 ${
+                willChange ? "bg-pink-500/[0.04]" : ""
+              }`}
+            >
+              {/* Brand-colored accent rail */}
+              <div
+                className={`absolute left-0 top-0 bottom-0 w-[3px] ${accentClass} bg-current transition-opacity ${
+                  isChecked ? "opacity-100" : "opacity-25 group-hover:opacity-60"
+                }`}
+                aria-hidden
+              />
+
+              {/* Slot index — 01..07 */}
+              <div className="font-mono text-[0.65rem] text-muted-foreground/40 tabular-nums w-6 select-none">
+                {(i + 1).toString().padStart(2, "0")}
+              </div>
+
+              {/* Custom checkbox */}
+              <div className="relative shrink-0">
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={() => toggleCli(cli.id)}
+                  disabled={isPending}
+                  className="sr-only peer"
+                  aria-label={`Toggle ${cli.label}`}
+                />
+                <div
+                  className={`h-[18px] w-[18px] rounded-sm border transition-all peer-focus-visible:ring-2 peer-focus-visible:ring-primary/40 ${
+                    isChecked
+                      ? "bg-primary border-primary"
+                      : "bg-background/50 border-border group-hover:border-foreground/40"
+                  }`}
+                >
+                  {isChecked && (
+                    <svg
+                      viewBox="0 0 18 18"
+                      className="h-full w-full text-primary-foreground"
+                      fill="none"
+                      aria-hidden
+                    >
+                      <path
+                        d="M4 9.5L7.5 12.5L14 6"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  )}
+                </div>
+              </div>
+
+              {/* CLI label */}
+              <div className="min-w-[150px] shrink-0">
+                <div className="text-sm font-medium text-foreground">{cli.label}</div>
+              </div>
+
+              {/* Status + diff pills */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                {isInstalled ? (
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[0.6rem] uppercase tracking-[0.15em] font-mono border ${badge}`}
+                  >
+                    <span className="h-1 w-1 rounded-full bg-current shadow-[0_0_4px_currentColor]" />
+                    Active
+                  </span>
+                ) : cli.detected ? (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[0.6rem] uppercase tracking-[0.15em] font-mono border border-border/60 text-muted-foreground/80 bg-muted/20">
+                    <span className="h-1 w-1 rounded-full bg-current opacity-60" />
+                    Detected
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[0.6rem] uppercase tracking-[0.15em] font-mono border border-border/30 text-muted-foreground/40">
+                    Inactive
+                  </span>
+                )}
+                {willChange && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[0.6rem] uppercase tracking-[0.15em] font-mono border border-pink-500/40 text-pink-400 bg-pink-500/10">
+                    {isChecked ? "+ install" : "− remove"}
+                  </span>
+                )}
+              </div>
+
+              {/* Settings path — right-aligned, monospace */}
+              <div
+                className="ml-auto hidden lg:block text-[0.7rem] font-mono text-muted-foreground/50 truncate max-w-[420px] group-hover:text-muted-foreground/80 transition-colors"
+                title={cli.settingsPath}
+              >
+                {cli.settingsPath}
+              </div>
+            </label>
+          );
+        })}
       </div>
 
       {/* Policy summary */}
@@ -1106,7 +1290,7 @@ function PoliciesTab({ onHooksInstallChange }: { onHooksInstallChange?: (install
         </span>
         {installed && (
           <span className="text-[0.65rem] text-muted-foreground/60">
-            · active in {config.installedScopes.join(", ")} scope
+            · shared across {installedCount} active CLI{installedCount === 1 ? "" : "s"}
           </span>
         )}
       </div>
@@ -1120,7 +1304,7 @@ function PoliciesTab({ onHooksInstallChange }: { onHooksInstallChange?: (install
         <ErrorToast
           message={hooksWarning}
           onDismiss={() => setHooksWarning(null)}
-          onInstall={handleInstall}
+          onInstall={handleApply}
           isPending={isPending}
         />
       )}
@@ -1306,7 +1490,7 @@ export default function HooksClient({ initialTab = "activity" }: { initialTab?: 
   useEffect(() => {
     getHooksConfigAction()
       .then((cfg) => {
-        setHooksInstalled(cfg.installedScopes.length > 0);
+        setHooksInstalled(cfg.clis.some((c) => c.installed));
         setPolicyCounts({
           enabled: cfg.enabledPolicies.length,
           total: cfg.policies.length + (cfg.customPolicies?.length ?? 0),

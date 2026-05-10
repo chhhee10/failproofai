@@ -63,9 +63,9 @@ A two-tab page for managing policies and reviewing activity.
 
 <Tabs>
   <Tab title="Policies tab">
-  - Toggle individual policies on or off with a single click (writes to `~/.failproofai/policies-config.json`)
+  - Multi-select which agent CLIs failproofai protects from a single panel — Claude Code, OpenAI Codex, GitHub Copilot, Cursor Agent, OpenCode, Pi, and Gemini CLI all have a row with install status (`Active` / `Detected` / `Inactive`), the user-scope settings path, and a brand-colored accent. Check or uncheck the CLIs you want and click `Apply changes` to install/uninstall the diff in one step. CLIs whose binary is detected on PATH are pre-checked.
+  - Toggle individual policies on or off with a single click (writes to `~/.failproofai/policies-config.json` — shared across every installed CLI)
   - Expand a policy to configure its parameters (for policies that support `policyParams`)
-  - Install or remove hooks for a given scope
   - Set a custom policies file path
   </Tab>
   <Tab title="Activity tab">
