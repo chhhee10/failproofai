@@ -23,6 +23,10 @@ import {
   COPILOT_TOOL_MAP,
   CURSOR_TOOL_MAP,
   CODEX_TOOL_MAP,
+  OPENCODE_TOOL_MAP,
+  OPENCODE_TOOL_INPUT_MAP,
+  PI_TOOL_MAP,
+  PI_TOOL_INPUT_MAP,
 } from "./types";
 import type { PolicyFunction, PolicyResult } from "./policy-types";
 import { readMergedHooksConfig } from "./hooks-config";
@@ -87,9 +91,13 @@ function canonicalizeEventType(raw: string, cli: IntegrationType): HookEventType
  *   • Cursor:   PascalCase per Cursor docs but uses `Shell` for the bash-
  *               equivalent — CURSOR_TOOL_MAP rewrites `Shell → Bash`; other
  *               tool names already canonical and pass through
- *   • OpenCode: handled in the OpenCode plugin shim (in-process,
- *               self-contained) before the JSON crosses to this binary
- *   • Pi:       handled in the Pi extension shim (same)
+ *   • OpenCode: lowercase IDs (`bash`, `read`, …) — OPENCODE_TOOL_MAP. The
+ *               OpenCode plugin shim ALSO canonicalizes inline as defense-in-
+ *               depth; both passes are idempotent. Handler-side coverage
+ *               here means a stale user-scope shim that pre-dates #337 still
+ *               gets the canonicalization, without forcing a re-install.
+ *   • Pi:       lowercase IDs (`bash`, `read`, …) — PI_TOOL_MAP. Same dual-
+ *               canonicalization story as OpenCode (shim + handler).
  *   • Gemini:   snake_case — GEMINI_TOOL_MAP
  *
  * Unknown tool names (MCP `mcp_*`, third-party extensions, Skills) pass
@@ -101,7 +109,46 @@ function canonicalizeToolName(raw: string | undefined, cli: IntegrationType): st
   if (cli === "cursor") return CURSOR_TOOL_MAP[raw] ?? raw;
   if (cli === "codex") return CODEX_TOOL_MAP[raw] ?? raw;
   if (cli === "gemini") return GEMINI_TOOL_MAP[raw] ?? raw;
+  if (cli === "opencode") return OPENCODE_TOOL_MAP[raw] ?? raw;
+  if (cli === "pi") return PI_TOOL_MAP[raw] ?? raw;
   return raw;
+}
+
+/**
+ * Canonicalize per-CLI tool-input keys to the snake_case shape that builtin
+ * policies read (e.g. `file_path`, `old_string`). OpenCode delivers args as
+ * camelCase (`filePath`, `oldString`, `newString`, `replaceAll`); Pi delivers
+ * `path` for Read/Write/Edit. Without translation, `getFilePath()` reads "" and
+ * the path-checking builtins (`block-read-outside-cwd`, `block-env-files`,
+ * `block-secrets-write`) silently no-op.
+ *
+ * Both CLIs' shims canonicalize inline before the JSON crosses to this binary.
+ * Handler-side coverage here is defense-in-depth: a user-scope shim that pre-
+ * dates #337 still passes the raw camelCase keys, and we want those installs
+ * to start enforcing the moment failproofai upgrades — without requiring a
+ * `failproofai policies --install --cli opencode` re-run.
+ *
+ * Idempotent: when the shim already canonicalized, the keys are snake_case
+ * and the per-tool map's camelCase keys don't match, so the loop is a no-op.
+ *
+ * Tools outside the per-CLI map (MCP `mcp_*`, third-party extensions) pass
+ * through unchanged so their schemas aren't corrupted.
+ */
+function canonicalizeToolInput(
+  toolName: string | undefined,
+  rawInput: unknown,
+  cli: IntegrationType,
+): unknown {
+  if (!toolName || !rawInput || typeof rawInput !== "object") return rawInput;
+  let perToolMap: Record<string, string> | undefined;
+  if (cli === "opencode") perToolMap = OPENCODE_TOOL_INPUT_MAP[toolName];
+  else if (cli === "pi") perToolMap = PI_TOOL_INPUT_MAP[toolName];
+  if (!perToolMap) return rawInput;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(rawInput as Record<string, unknown>)) {
+    out[perToolMap[k] ?? k] = v;
+  }
+  return out;
 }
 
 export async function handleHookEvent(
@@ -151,13 +198,23 @@ export async function handleHookEvent(
 
   // Canonicalize tool name in place so both the policy-registry tool-name
   // filter and policy bodies (`ctx.toolName === "Bash"`) see the canonical
-  // form. Today only Gemini's snake_case names need translation; other CLIs
-  // are no-ops here. Mutating `parsed.tool_name` keeps the activity store +
-  // telemetry tagging consistent (they read from `parsed.tool_name`).
+  // form. Mutating `parsed.tool_name` keeps the activity store + telemetry
+  // tagging consistent (they read from `parsed.tool_name`).
   const rawToolName = parsed.tool_name as string | undefined;
   const canonicalToolName = canonicalizeToolName(rawToolName, cli);
   if (canonicalToolName !== rawToolName) {
     parsed.tool_name = canonicalToolName;
+  }
+
+  // Canonicalize tool-input keys for OpenCode + Pi (no-op for other CLIs).
+  // Defense-in-depth against stale shims that still pass camelCase /
+  // Pi-shape keys to the binary. The per-CLI shim ALSO canonicalizes; both
+  // passes are idempotent because the camelCase keys won't match a
+  // snake_case input.
+  const rawInput = parsed.tool_input;
+  const canonicalInput = canonicalizeToolInput(canonicalToolName, rawInput, cli);
+  if (canonicalInput !== rawInput) {
+    parsed.tool_input = canonicalInput;
   }
 
   // Extract session metadata from payload

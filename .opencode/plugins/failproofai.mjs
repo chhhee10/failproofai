@@ -10,6 +10,12 @@
 // Do NOT install this repo via `failproofai policies --install --cli
 // opencode --scope project` — it would overwrite this dev path with the
 // portable npx form.
+//
+// IMPORTANT: keep TOOL_NAME_MAP / TOOL_INPUT_MAP in sync with both:
+//   • src/hooks/types.ts (OPENCODE_TOOL_MAP / OPENCODE_TOOL_INPUT_MAP)
+//   • src/hooks/integrations.ts (buildOpenCodePluginShim production template)
+// When #337 landed, this dev shim drifted and `block-read-outside-cwd`
+// silently no-op'd on every opencode `read` call inside this repo.
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 
@@ -22,6 +28,49 @@ const BUS_EVENT_MAP = {
   "session.idle":    "Stop",
 };
 
+// Map opencode lowercase tool IDs (`input.tool`) → Claude PascalCase canonical
+// names. Builtin failproofai policies match on PascalCase via case-sensitive
+// `Array.includes`, so without this every Bash/Read/Write/Edit builtin
+// silently no-ops under opencode.
+const TOOL_NAME_MAP = {
+  bash: "Bash",
+  read: "Read",
+  write: "Write",
+  edit: "Edit",
+  apply_patch: "Edit",
+  glob: "Glob",
+  grep: "Grep",
+  list: "LS",
+  webfetch: "WebFetch",
+  websearch: "WebSearch",
+  todowrite: "TodoWrite",
+  todoread: "TodoRead",
+};
+function canonicalizeTool(raw) {
+  if (!raw) return raw;
+  return TOOL_NAME_MAP[raw] != null ? TOOL_NAME_MAP[raw] : raw;
+}
+
+// Per-tool input-key translation: opencode native tools deliver args as
+// camelCase (`filePath`, `oldString`, …) but failproofai builtin policies
+// (`block-read-outside-cwd`, `block-env-files`, `block-secrets-write`)
+// read `ctx.toolInput.file_path` etc. Without this map every Read/Write/Edit
+// path-check silently no-ops on opencode. Keys are PascalCase canonical tool
+// names so the lookup pairs with canonicalizeTool's output.
+const TOOL_INPUT_MAP = {
+  Read: { filePath: "file_path" },
+  Write: { filePath: "file_path" },
+  Edit: { filePath: "file_path", oldString: "old_string", newString: "new_string", replaceAll: "replace_all" },
+};
+function canonicalizeToolInput(canonicalToolName, args) {
+  if (!args || typeof args !== "object") return args;
+  const map = TOOL_INPUT_MAP[canonicalToolName];
+  if (!map) return args;
+  const out = {};
+  for (const k of Object.keys(args)) out[map[k] != null ? map[k] : k] = args[k];
+  return out;
+}
+
 function runFailproofai(eventName, payload, directory) {
   const r = spawnSync("bun", [FAILPROOFAI_DEV_BIN, "--hook", eventName, "--cli", "opencode"], {
     input: JSON.stringify(payload),
@@ -32,7 +81,7 @@ function runFailproofai(eventName, payload, directory) {
   return { exitCode: r.status ?? 0, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 }
 
-function applyDecision(result, ctx) {
+async function applyDecision(result, ctx, eventName) {
   if (result.exitCode === 2) {
     throw new Error((result.stderr || "").trim() || "Blocked by failproofai");
   }
@@ -46,12 +95,21 @@ function applyDecision(result, ctx) {
   if (out && out.decision && out.decision.behavior === "deny") {
     throw new Error((out.decision.message) || "Blocked by failproofai");
   }
+  // For Stop / SubagentStop the prompt is the only force-retry channel
+  // (session.idle already fired), so AWAIT to ensure the SDK round-trip
+  // completes before the plugin handler returns. For tool events keep
+  // fire-and-forget so we don't add latency to every tool call.
   const ctxText = out && out.additionalContext;
   if (ctxText && ctx && ctx.client && ctx.sessionID) {
-    Promise.resolve(ctx.client.session.prompt({
+    const prompt = ctx.client.session.prompt({
       path: { id: ctx.sessionID },
       body: { parts: [{ type: "text", text: ctxText }] },
-    })).catch(() => {});
+    });
+    if (eventName === "Stop" || eventName === "SubagentStop") {
+      try { await prompt; } catch { /* swallow — agent is exiting anyway */ }
+    } else {
+      Promise.resolve(prompt).catch(() => {});
+    }
   }
 }
 
@@ -65,7 +123,6 @@ export default async function failproofaiPlugin({ client, directory }) {
         const role = info.role || props.role;
         if (role !== "user") return;
         const sessionID = info.sessionID || info.sessionId || info.session_id || props.sessionID;
-        // Reconstruct the user prompt text so prompt-based policies see it.
         let prompt = "";
         const parts = info.parts || props.parts || [];
         if (Array.isArray(parts)) {
@@ -77,7 +134,7 @@ export default async function failproofaiPlugin({ client, directory }) {
         const r = runFailproofai("UserPromptSubmit", {
           session_id: sessionID, cwd: directory, hook_event_name: "UserPromptSubmit", prompt,
         }, directory);
-        applyDecision(r, { client, sessionID });
+        await applyDecision(r, { client, sessionID }, "UserPromptSubmit");
         return;
       }
       const claudeEvent = BUS_EVENT_MAP[event.type];
@@ -87,42 +144,45 @@ export default async function failproofaiPlugin({ client, directory }) {
       const r = runFailproofai(claudeEvent, {
         session_id: sessionID, cwd: directory, hook_event_name: claudeEvent,
       }, directory);
-      applyDecision(r, { client, sessionID });
+      await applyDecision(r, { client, sessionID }, claudeEvent);
     },
 
     "tool.execute.before": async (input, output) => {
+      const canonicalTool = canonicalizeTool(input.tool);
       const r = runFailproofai("PreToolUse", {
         session_id: input.sessionID,
         cwd: directory,
-        tool_name: input.tool,
-        tool_input: output.args,
+        tool_name: canonicalTool,
+        tool_input: canonicalizeToolInput(canonicalTool, output.args),
         hook_event_name: "PreToolUse",
       }, directory);
-      applyDecision(r, { client, sessionID: input.sessionID });
+      await applyDecision(r, { client, sessionID: input.sessionID }, "PreToolUse");
     },
 
     "tool.execute.after": async (input, output) => {
+      const canonicalTool = canonicalizeTool(input.tool);
       const r = runFailproofai("PostToolUse", {
         session_id: input.sessionID,
         cwd: directory,
-        tool_name: input.tool,
-        tool_input: input.args,
+        tool_name: canonicalTool,
+        tool_input: canonicalizeToolInput(canonicalTool, input.args),
         tool_response: { title: output.title, output: output.output, metadata: output.metadata },
         hook_event_name: "PostToolUse",
       }, directory);
-      applyDecision(r, { client, sessionID: input.sessionID });
+      await applyDecision(r, { client, sessionID: input.sessionID }, "PostToolUse");
     },
 
     "permission.ask": async (input, output) => {
+      const canonicalTool = canonicalizeTool(input.tool);
       const r = runFailproofai("PermissionRequest", {
         session_id: input.sessionID,
         cwd: directory,
-        tool_name: input.tool || input.command || "permission",
-        tool_input: input,
+        tool_name: canonicalTool || input.command || "permission",
+        tool_input: canonicalizeToolInput(canonicalTool, input),
         hook_event_name: "PermissionRequest",
       }, directory);
       try {
-        applyDecision(r, { client, sessionID: input.sessionID });
+        await applyDecision(r, { client, sessionID: input.sessionID }, "PermissionRequest");
       } catch {
         output.status = "deny";
       }
