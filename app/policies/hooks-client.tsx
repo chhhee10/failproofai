@@ -1486,6 +1486,7 @@ export default function HooksClient({ initialTab = "activity" }: { initialTab?: 
   const [activeTab, setActiveTab] = useState<"activity" | "policies">(initialTab);
   const [hooksInstalled, setHooksInstalled] = useState<boolean | undefined>(undefined);
   const [policyCounts, setPolicyCounts] = useState<{ enabled: number; total: number } | null>(null);
+  const [installedCliLabels, setInstalledCliLabels] = useState<string[]>([]);
 
   useEffect(() => {
     getHooksConfigAction()
@@ -1495,9 +1496,16 @@ export default function HooksClient({ initialTab = "activity" }: { initialTab?: 
           enabled: cfg.enabledPolicies.length,
           total: cfg.policies.length + (cfg.customPolicies?.length ?? 0),
         });
+        setInstalledCliLabels(cfg.clis.filter((c) => c.installed).map((c) => c.label));
       })
       .catch(() => setHooksInstalled(undefined));
   }, []);
+
+  const evaluationsHeading = installedCliLabels.length === 0
+    ? "Policy evaluations"
+    : installedCliLabels.length <= 3
+      ? `Policy evaluations across ${installedCliLabels.join(", ")}`
+      : `Policy evaluations across ${installedCliLabels.length} agents`;
 
   const handleTabChange = (tab: "activity" | "policies") => {
     setActiveTab(tab);
@@ -1529,7 +1537,7 @@ export default function HooksClient({ initialTab = "activity" }: { initialTab?: 
         <p className="text-sm text-muted-foreground mt-1">
           {activeTab === "activity" ? (
             <>
-              Policy evaluations for Claude
+              {evaluationsHeading}
               {policyCounts && (
                 <span className="text-muted-foreground/60">
                   {" · "}enabled policies{" "}

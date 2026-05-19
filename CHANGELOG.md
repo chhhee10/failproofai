@@ -2,6 +2,9 @@
 
 ## 0.0.11-beta.0 — 2026-05-13
 
+### Fixes
+- Dashboard `/policies` activity-tab subheading: replace the hardcoded "Policy evaluations for Claude" with a dynamic list of installed CLIs ("Policy evaluations across Claude Code, Cursor"), collapsing to "across N agents" when 4 or more are installed and falling back to "Policy evaluations" when none are. Reads from the existing `getHooksConfigAction()` payload — no new server work. The text was a leftover from when failproofai only supported Claude Code and was inaccurate against the now-7-CLI surface (Claude, Codex, Copilot, Cursor, OpenCode, Pi, Gemini) (#358).
+
 ### Dependencies
 - Bump `tailwindcss` 4.2.4 → 4.3.0 (#357)
 - Bump `react` 19.2.5 → 19.2.6 (#357)
