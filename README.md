@@ -73,7 +73,7 @@ before they become incidents. Zero latency. Runs locally.
   </a>
 </p>
 
-> Install hooks for one or any combination: `failproofai policies --install --cli opencode pi gemini` (or `--cli claude codex copilot cursor opencode pi gemini`). Omit `--cli` to auto-detect installed CLIs and prompt. **GitHub Copilot CLI, Cursor Agent, OpenCode, Pi, and Gemini CLI support are in beta — testing is ongoing.**
+> Install hooks for one or any combination: `failproofai policies --install --cli opencode pi gemini` (or `--cli claude codex copilot cursor opencode pi gemini`). Omit `--cli` to auto-detect installed CLIs and prompt.
 
 ---
 
