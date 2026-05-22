@@ -1502,6 +1502,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   {
     name: "sanitize-jwt",
     description: "Stop Claude from reading JWTs in tool responses",
+    displayTitle: "Redacted JWT tokens from tool output",
+    impact: "Stops the agent from echoing auth tokens it saw in command output.",
     fn: sanitizeJwt,
     match: { events: ["PostToolUse"] },
     defaultEnabled: true,
@@ -1510,6 +1512,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   {
     name: "sanitize-api-keys",
     description: "Stop Claude from reading API keys (OpenAI, Anthropic, GitHub, AWS, Stripe, Google) in tool responses",
+    displayTitle: "Redacted API keys from tool output",
+    impact: "Catches OpenAI / Anthropic / GitHub / AWS / Stripe / Google keys before the model sees them.",
     fn: sanitizeApiKeys,
     match: { events: ["PostToolUse"] },
     defaultEnabled: true,
@@ -1525,6 +1529,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   {
     name: "sanitize-connection-strings",
     description: "Stop Claude from reading database connection strings with embedded credentials in tool responses",
+    displayTitle: "Redacted database connection strings from tool output",
+    impact: "Strips embedded DB credentials before they reach the model context.",
     fn: sanitizeConnectionStrings,
     match: { events: ["PostToolUse"] },
     defaultEnabled: true,
@@ -1533,6 +1539,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   {
     name: "sanitize-private-key-content",
     description: "Stop Claude from reading PEM private key content in tool responses",
+    displayTitle: "Redacted PEM private keys from tool output",
+    impact: "Prevents private key bodies from being echoed into chat context.",
     fn: sanitizePrivateKeyContent,
     match: { events: ["PostToolUse"] },
     defaultEnabled: true,
@@ -1540,6 +1548,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "sanitize-bearer-tokens",
+    displayTitle: "Redacted bearer tokens from tool output",
+    impact: "Strips Authorization: Bearer values before they hit the model.",
     description: "Stop Claude from reading Authorization Bearer tokens in tool responses",
     fn: sanitizeBearerTokens,
     match: { events: ["PostToolUse"] },
@@ -1548,6 +1558,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "protect-env-vars",
+    displayTitle: "Tried to dump environment variables to chat",
+    impact: "Env vars often contain secrets; blocking `env` / `printenv` keeps them out of the model context.",
     description: "Prevent commands that read environment variables",
     fn: protectEnvVars,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1556,6 +1568,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "block-env-files",
+    displayTitle: "Tried to read or write a .env file",
+    impact: "`.env` files routinely contain API keys and DB credentials.",
     description: "Block reading/writing .env files",
     fn: blockEnvFiles,
     match: { events: ["PreToolUse"] },
@@ -1564,6 +1578,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "block-read-outside-cwd",
+    displayTitle: "Tried to read files outside your project directory",
+    impact: "Stops the agent from peeking at neighboring repos or your home directory.",
     description: "Block file reads outside the session working directory",
     fn: blockReadOutsideCwd,
     match: { events: ["PreToolUse"], toolNames: ["Read", "Glob", "Grep", "Bash"] },
@@ -1579,6 +1595,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "block-sudo",
+    displayTitle: "Tried to run a command with sudo",
+    impact: "Sudo gives the agent root — blocked unless explicitly allow-listed.",
     description: "Block sudo commands",
     fn: blockSudo,
     // PermissionRequest is Codex's escalation-approval event; fire the same
@@ -1596,6 +1614,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "block-curl-pipe-sh",
+    displayTitle: "Tried to pipe a downloaded script straight to a shell",
+    impact: "`curl ... | sh` runs unverified remote code on your machine.",
     description: "Block piping downloads to shell",
     fn: blockCurlPipeSh,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1604,6 +1624,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "block-rm-rf",
+    displayTitle: "Tried to recursively delete a system path",
+    impact: "Catches catastrophic `rm -rf /` and Windows equivalents.",
     description: "Prevent catastrophic deletions",
     fn: blockRmRf,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1619,6 +1641,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "block-failproofai-commands",
+    displayTitle: "Tried to disable or modify failproofai itself",
+    impact: "Prevents the agent from turning off the policies that protect you.",
     description: "Block failproofai CLI commands and uninstallation",
     fn: blockFailproofaiCommands,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1627,6 +1651,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "block-kubectl",
+    displayTitle: "Tried to run a Kubernetes command",
+    impact: "kubectl can change live cluster state — gated unless allow-listed.",
     description: "Block kubectl commands (Kubernetes cluster mutations)",
     fn: blockKubectl,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1642,6 +1668,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "block-terraform",
+    displayTitle: "Tried to run a Terraform/OpenTofu command",
+    impact: "Terraform mutates real infrastructure — gated unless allow-listed.",
     description: "Block terraform and tofu (OpenTofu) commands",
     fn: blockTerraform,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1657,6 +1685,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "block-aws-cli",
+    displayTitle: "Tried to run an AWS CLI command",
+    impact: "AWS CLI can spend money or break prod — gated.",
     description: "Block aws CLI commands",
     fn: blockAwsCli,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1672,6 +1702,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "block-gcloud",
+    displayTitle: "Tried to run a Google Cloud command",
+    impact: "gcloud can spend money or break prod — gated.",
     description: "Block gcloud (Google Cloud) CLI commands",
     fn: blockGcloud,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1687,6 +1719,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "block-az-cli",
+    displayTitle: "Tried to run an Azure CLI command",
+    impact: "az can spend money or break prod — gated.",
     description: "Block az (Azure) CLI commands",
     fn: blockAzCli,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1702,6 +1736,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "block-helm",
+    displayTitle: "Tried to run a Helm command",
+    impact: "Helm releases mutate cluster state — gated.",
     description: "Block helm commands",
     fn: blockHelm,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1717,6 +1753,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "block-gh-pipeline",
+    displayTitle: "Tried to run a privileged GitHub CLI pipeline command",
+    impact: "Catches `gh workflow run`, `gh pr merge`, `gh secret set`, etc.",
     description: "Block gh CLI pipeline-trigger subcommands (workflow run, run rerun/cancel, pr merge, release create/delete, cache delete, secret set/delete)",
     fn: blockGhPipeline,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1732,6 +1770,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "block-secrets-write",
+    displayTitle: "Tried to write a secret-key file",
+    impact: "Stops the agent from creating `.pem`, `id_rsa`, `credentials.json`, etc.",
     description: "Block writing secret key files",
     fn: blockSecretsWrite,
     match: { events: ["PreToolUse"], toolNames: ["Write"] },
@@ -1747,6 +1787,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "block-push-master",
+    displayTitle: "Tried to push directly to main/master",
+    impact: "Direct pushes to a protected branch bypass review.",
     description: "Block pushing to main/master",
     fn: blockPushMaster,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1762,6 +1804,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "block-force-push",
+    displayTitle: "Tried to force-push",
+    impact: "Force-pushes rewrite history and can clobber teammates' work.",
     description: "Prevent force-pushing to any branch",
     fn: blockForcePush,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1770,6 +1814,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "block-work-on-main",
+    displayTitle: "Tried to commit or merge on main/master",
+    impact: "Work should land via PR — direct commits skip review.",
     description: "Block git commits and merges on main/master branch",
     fn: blockWorkOnMain,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1785,6 +1831,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "warn-git-amend",
+    displayTitle: "Used git commit --amend",
+    impact: "Amending after a push rewrites history that others may have pulled.",
     description: "Warns before amending git commits, which rewrites history",
     fn: warnGitAmend,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1793,6 +1841,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "warn-git-stash-drop",
+    displayTitle: "Tried to drop or clear git stash",
+    impact: "Stash deletions are permanent and silent.",
     description: "Warns before permanently deleting stashed changes",
     fn: warnGitStashDrop,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1801,6 +1851,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "warn-all-files-staged",
+    displayTitle: "Staged all files with git add -A / .",
+    impact: "Wide stages routinely catch generated files or secrets you didn't intend to commit.",
     description: "Warns before staging all working tree files with git add -A / . / --all",
     fn: warnAllFilesStaged,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1809,6 +1861,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "warn-destructive-sql",
+    displayTitle: "Ran destructive SQL (DROP / TRUNCATE / DELETE without WHERE)",
+    impact: "Easy way to wipe a table by accident.",
     description: "Warn before executing destructive SQL (DROP/TRUNCATE/DELETE without WHERE) via database clients",
     fn: warnDestructiveSql,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1817,6 +1871,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "warn-schema-alteration",
+    displayTitle: "Altered a database schema column",
+    impact: "ALTER TABLE operations can lock tables and break readers.",
     description: "Warns before SQL schema changes (ALTER TABLE with column or rename operations)",
     fn: warnSchemaAlteration,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1825,6 +1881,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "warn-package-publish",
+    displayTitle: "Tried to publish a package",
+    impact: "Publishes are irreversible — `npm publish` / `cargo publish` shouldn't happen without intent.",
     description: "Warn before publishing packages to public registries (npm, PyPI, crates.io, RubyGems, etc.)",
     fn: warnPackagePublish,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1833,6 +1891,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "warn-global-package-install",
+    displayTitle: "Installed a package globally",
+    impact: "`npm i -g`, `cargo install`, `pip --user` pollute your machine outside the project.",
     description: "Warns before installing packages globally (npm -g, cargo install, etc.)",
     fn: warnGlobalPackageInstall,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1841,6 +1901,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "prefer-package-manager",
+    displayTitle: "Used a non-preferred package manager",
+    impact: "Mixing package managers creates lockfile churn for your team.",
     description: "Blocks non-preferred package managers and tells Claude to use an allowed one (e.g., uv instead of pip)",
     fn: preferPackageManager,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1861,6 +1923,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "warn-large-file-write",
+    displayTitle: "Wrote a file larger than the configured threshold",
+    impact: "Catches accidentally large file writes (logs, binaries, model dumps).",
     description: "Warn before writing files larger than 1MB (configurable via thresholdKb param)",
     fn: warnLargeFileWrite,
     match: { events: ["PreToolUse"], toolNames: ["Write"] },
@@ -1876,6 +1940,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "warn-background-process",
+    displayTitle: "Started a long-lived background process",
+    impact: "Catches `nohup` / `&` / `screen` / `tmux` / `disown` patterns that the agent often forgets to clean up.",
     description: "Warns before starting detached or background processes",
     fn: warnBackgroundProcess,
     match: { events: ["PreToolUse"], toolNames: ["Bash"] },
@@ -1884,6 +1950,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "warn-repeated-tool-calls",
+    displayTitle: "Called the same tool 3+ times with identical arguments",
+    impact: "Usually a sign of a stuck loop burning tokens.",
     description: "Warn when the same tool is called 3+ times with identical parameters",
     fn: warnRepeatedToolCalls,
     match: { events: ["PreToolUse"] },
@@ -1892,6 +1960,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "require-commit-before-stop",
+    displayTitle: "Stopped with uncommitted changes",
+    impact: "Work not in a commit is invisible to teammates and easy to lose.",
     description: "Require all changes to be committed before Claude stops",
     fn: requireCommitBeforeStop,
     match: { events: ["Stop"] },
@@ -1900,6 +1970,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "require-push-before-stop",
+    displayTitle: "Stopped with unpushed commits",
+    impact: "Local-only commits won't trigger CI or be reviewable.",
     description: "Require all commits to be pushed to remote before Claude stops",
     fn: requirePushBeforeStop,
     match: { events: ["Stop"] },
@@ -1920,6 +1992,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "require-pr-before-stop",
+    displayTitle: "Stopped without a PR for the branch",
+    impact: "Branches without PRs don't get reviewed.",
     description: "Require a pull request to exist for the current branch before Claude stops",
     fn: requirePrBeforeStop,
     match: { events: ["Stop"] },
@@ -1935,6 +2009,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "require-no-conflicts-before-stop",
+    displayTitle: "Stopped with a branch that conflicts with main",
+    impact: "Conflicting branches can't merge — surface them early.",
     description: "Require the current branch to merge cleanly with the base branch before Claude stops",
     fn: requireNoConflictsBeforeStop,
     match: { events: ["Stop"] },
@@ -1950,6 +2026,8 @@ export const BUILTIN_POLICIES: BuiltinPolicyDefinition[] = [
   },
   {
     name: "require-ci-green-before-stop",
+    displayTitle: "Stopped with failing CI",
+    impact: "Failing CI blocks deploy.",
     description: "Require CI checks to pass on the current HEAD commit before Claude stops (ignores stale runs on prior commits)",
     fn: requireCiGreenBeforeStop,
     match: { events: ["Stop"] },

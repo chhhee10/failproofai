@@ -54,6 +54,15 @@ export interface BuiltinPolicyDefinition {
   category: string;
   beta?: boolean;
   params?: PolicyParamsSchema;
+  /** User-facing past-tense phrase used in `failproofai audit` output.
+   *  Frames the agent's action as something the user observes after-the-fact,
+   *  e.g. "Tried to push to main branch" or "Redacted JWT from tool output".
+   *  Falls back to `description` when omitted. */
+  displayTitle?: string;
+  /** One short clause describing the consequence of the action, used as a
+   *  secondary line in the audit report. e.g. "Could leak code from neighboring
+   *  repos to the model." */
+  impact?: string;
 }
 
 export interface CustomHook {
