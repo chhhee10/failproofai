@@ -1,0 +1,48 @@
+# Supply-chain security gate.
+#
+# Scans the resolved dependency tree (bun.lock) against the OSV.dev database —
+# which aggregates GitHub/npm security advisories AND the OpenSSF
+# malicious-packages feed — and FAILS on any known-vulnerable or known-malicious
+# package (block-on-any-finding policy). OSV-Scanner exits non-zero when it finds
+# anything, which fails this job.
+#
+# Runs on every PR (incl. Dependabot bumps), on pushes to main, and weekly to
+# catch advisories disclosed after a dependency was already merged.
+#
+# Triage / allow-listing unfixable advisories: see SECURITY.md and osv-scanner.toml
+# (auto-loaded from the repo root by OSV-Scanner).
+#
+# Third-party actions are pinned to a commit SHA (we're a supply-chain tool —
+# practice what we preach).
+name: Supply Chain
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 4 * * 1" # Mondays 04:17 UTC
+  workflow_dispatch:
+
+# Least privilege: the scan only needs to read the checked-out source.
+# contents:read is also available to Dependabot PRs (read-only token), so the
+# gate enforces on dependency-bump PRs too.
+permissions:
+  contents: read
+
+jobs:
+  osv-scanner:
+    name: OSV-Scanner
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          # No git ops after checkout; don't leave the token in .git/config.
+          persist-credentials: false
+      - name: Scan bun.lock for known-vulnerable / malicious dependencies
+        uses: google/osv-scanner-action/osv-scanner-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
+        with:
+          scan-args: |-
+            --lockfile=bun.lock

@@ -96,5 +96,9 @@
   },
   "dependencies": {
     "posthog-node": "^5.28.11"
+  },
+  "overrides": {
+    "postcss": "8.5.14",
+    "eslint-plugin-react-hooks": "7.0.1"
   }
 }

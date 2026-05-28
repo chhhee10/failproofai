@@ -1,0 +1,17 @@
+# OSV-Scanner allow-list — auto-loaded by the Supply Chain CI gate
+# (.github/workflows/osv-scanner.yml) when it scans bun.lock.
+#
+# The gate blocks on ANY known-vulnerable or malicious dependency. When a finding
+# has no available fix (e.g. an unpatched transitive advisory), add a justified,
+# time-boxed entry here so unrelated PRs aren't blocked. Always prefer FIXING
+# (bump the dependency, or pin it via `overrides` in package.json) over ignoring.
+# Keep this list short and re-review entries when their ignoreUntil date passes.
+#
+# Every entry MUST include a reason and an ignoreUntil date. Example:
+#
+# [[IgnoredVulns]]
+# id = "GHSA-xxxx-xxxx-xxxx"
+# ignoreUntil = 2026-07-01
+# reason = "No upstream fix yet; transitive via <pkg>; not reachable in our usage. Re-review by 2026-07-01."
+#
+# There are currently no ignored vulnerabilities — the dependency tree is clean.
