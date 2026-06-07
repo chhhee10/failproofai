@@ -1471,7 +1471,8 @@ function requireCiGreenBeforeStop(ctx: PolicyContext): PolicyResult {
         r.status === "completed" &&
         r.conclusion !== "success" &&
         r.conclusion !== "skipped" &&
-        r.conclusion !== "cancelled",
+        r.conclusion !== "cancelled" &&
+        r.conclusion !== "neutral",
     );
     if (failing.length > 0) {
       const names = failing.map((r) => `"${r.name}"`).join(", ");

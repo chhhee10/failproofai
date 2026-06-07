@@ -3312,6 +3312,16 @@ describe("hooks/builtin-policies", () => {
       expect(result.decision).toBe("allow");
     });
 
+    it("treats neutral conclusions as non-failing (e.g. Socket on outside-contributor PRs)", async () => {
+      mockCiScenario("feat/branch", JSON.stringify([
+        { status: "completed", conclusion: "neutral", name: "Socket Security: Pull Request Alerts" },
+        { status: "completed", conclusion: "success", name: "build" },
+      ]));
+      const ctx = makeCtx({ eventType: "Stop", session: { cwd: "/repo" } });
+      const result = await policy.fn(ctx);
+      expect(result.decision).toBe("allow");
+    });
+
     it("failing checks take priority over pending checks", async () => {
       mockCiScenario("feat/branch", JSON.stringify([
         { status: "completed", conclusion: "failure", name: "test" },

@@ -3,7 +3,11 @@
 ## 0.0.11-beta.3 — 2026-05-28
 
 ### Fixes
+- Treat GitHub `neutral` check-run conclusions as non-failing in the `require-ci-green-before-stop` policy (e.g. Socket Security: Pull Request Alerts when the head branch is from an outside contributor and Socket can't process it). Previously the policy treated anything other than `success` / `skipped` / `cancelled` as failing, producing false-positive Stop blocks on PRs whose only "non-green" check was an explicit `neutral` (#410).
 - Fix the `bump-platform-submodule.yml` workflow's first post-merge push, which failed with `fatal: could not read Username for 'https://github.com'`. The `persist-credentials: false` hardening from #394 left the cross-repo `git push`/`fetch` unauthenticated, and the inline `Authorization: bearer …` extraheader only authenticates GitHub's REST API — git-over-HTTPS smart-protocol expects Basic auth with `x-access-token:<pat>`. Switch to a base64-encoded Basic header (matching `actions/checkout`'s own internal extraheader format) so the push and the rebase-and-retry fetch in the loop both authenticate (#395).
+
+### Docs
+- Add `docs/.vale.ini` and a `Mintlify` Vocab accept-list to suppress noisy `Mintlify Validation (exosphere) - vale-spellcheck` CI failures. Disables `Vale.Spelling` on the 14 translated language subdirs (`ar/`, `de/`, …, `zh/`) and `i18n/`, since running an English dictionary over auto-translated content produces only noise; keeps spellcheck active on the canonical English `*.{md,mdx}` files with a project Vocab covering brand names (`failproofai`, `Claude`, `Codex`, …), CLI tooling (`npx`, `bunx`, `gcloud`, `systemctl`, …), and Claude Code event names (`PreToolUse`, `SessionStart`, …) (#410).
 
 ### Features
 - Add a `bump-platform-submodule.yml` workflow that pushes a matching `failproofai/oss` gitlink bump to `FailproofAI/platform` `main` on every merge into this repo's `main`, so the monorepo's pinned submodule commit tracks upstream automatically. Uses a `PLATFORM_BUMP_TOKEN` repo secret (fine-grained PAT, contents: read & write on `FailproofAI/platform`) for cross-repo auth, a concurrency group to serialize back-to-back merges, and a rebase-and-retry loop to stay race-safe against humans pushing to platform `main` between checkout and push (#394).
