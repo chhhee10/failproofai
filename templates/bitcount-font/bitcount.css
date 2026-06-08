@@ -1,0 +1,49 @@
+/* =====================================================================
+   Bitcount Prop Single — title / wordmark treatment
+   Source: befailproof.ai (recovered from web platform PR #374)
+
+   Fine-tuned instance: wght 417, ELSH 55 (slnt default 0). ELSH is
+   Bitcount's "Element Shape" axis: 55 = rounded squares; the font's
+   default 0 = round dots.
+
+   THIS FOLDER SHIPS A SELF-HOSTED STATIC INSTANCE
+   (bitcount-prop-single.woff2 — wght 417 + ELSH 55 baked in). That is the
+   reliable path: it renders the rounded-square shape on every device,
+   phones included, with no dependency on variable-axis support.
+
+   Why not the Google Fonts CDN? Google serves a STATIC default-instance
+   file to many mobile user-agents, so `font-variation-settings: "ELSH" 55`
+   silently no-ops there and you get the default round dots. Self-hosting
+   (or next/font, which also self-hosts) avoids that. See fonts.ts.example.
+   ===================================================================== */
+
+/* Self-hosted static instance — rounded squares baked in (no runtime axis needed). */
+@font-face {
+  font-family: "Bitcount Prop Single";
+  src: url("./bitcount-prop-single.woff2") format("woff2");
+  font-weight: 400;          /* instanced at wght 417 */
+  font-display: swap;
+}
+
+:root {
+  --font-bitcount: "Bitcount Prop Single";
+  --font-display: var(--font-bitcount), "VT323", ui-monospace, monospace;
+
+  /* fine-tuned knobs from befailproof.ai. Shape/weight are baked into the
+     bundled woff2; these three control layout. */
+  --title-scale: 0.9;        /* title size multiplier    */
+  --title-squish: 0.9;       /* horizontal scaleX squish */
+  --title-tracking: 0.08em;  /* letter-spacing           */
+}
+
+.bitcount-title {
+  font-family: var(--font-display);
+  /* No-op on the bundled static font (shape is baked in); applies the same
+     instance if you swap in the VARIABLE font instead, e.g. via next/font. */
+  font-variation-settings: "wght" 417, "ELSH" 55;
+  letter-spacing: var(--title-tracking);
+  text-transform: lowercase;
+  transform: scaleX(var(--title-squish));
+  transform-origin: left center;
+  font-size: calc(1em * var(--title-scale));
+}
