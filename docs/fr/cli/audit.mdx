@@ -1,100 +1,57 @@
 ---
-title: Audit des sessions passées (bêta)
-description: "Comptabilisez la fréquence des comportements inefficaces ou risqués de l'agent dans les transcriptions passées"
+title: Auditer les sessions passées (bêta)
+description: "Comptez la fréquence à laquelle l'agent a effectué des actions inutiles ou risquées dans les transcriptions passées"
 ---
 
 <Note>
-  **Fonctionnalité bêta.** `failproofai audit` est disponible en version bêta le temps de recueillir les premiers retours. Les options CLI, le format de sortie et le catalogue de détecteurs exclusifs à l'audit sont susceptibles d'évoluer avant la prochaine version stable. Mise en ligne imminente — n'hésitez pas à ouvrir une issue si quelque chose vous semble anormal.
+  **Fonctionnalité bêta.** L'audit est fourni en version bêta pendant que nous recueillons les premiers retours.
+  Le catalogue de détecteurs et le format de rapport sont susceptibles d'évoluer avant la prochaine version stable.
+  N'hésitez pas à ouvrir un ticket si quelque chose vous semble incorrect.
 </Note>
 
+L'audit est désormais accessible depuis la **page du tableau de bord /audit**, et non via une sous-commande CLI. Ouvrez-la depuis la barre de navigation du tableau de bord (entre Policies et Projects), ou accédez directement à `http://localhost:8020/audit` lorsque vous exécutez `failproofai` en local.
+
 ```bash
-failproofai audit [options]
+failproofai          # ouvrez le tableau de bord, puis cliquez sur "Audit"
 ```
 
-Analyse les transcriptions passées de l'agent CLI sur cette machine (Claude Code, Codex, Copilot, Cursor, OpenCode, Pi, Gemini) et indique la fréquence à laquelle l'agent a effectué des actions que failproofai est conçu pour bloquer — vérifications de variables d'environnement, force push, préfixes `cd <cwd>` redondants, boucles de polling avec sleep, re-lecture de fichiers récemment modifiés, et bien plus encore.
+Le tableau de bord analyse les transcriptions CLI passées de l'agent sur cette machine (Claude Code, Codex, Copilot, Cursor, OpenCode, Pi, Gemini) et indique la fréquence à laquelle l'agent a effectué des actions que failproofai est conçu pour bloquer — vérifications de variables d'environnement, push forcés, préfixes `cd <cwd>` redondants, boucles de polling avec sleep, relecture de fichiers venant d'être modifiés, et bien plus encore.
 
-Pour chaque transcription, chaque événement d'utilisation d'outil est rejoué à travers les 39 politiques intégrées **ainsi que** 8 détecteurs exclusifs à l'audit qui identifient des patterns non encore couverts par les politiques en temps réel. Les comptages sont agrégés par politique / détecteur sur l'ensemble des sessions.
+Pour chaque transcription, chaque événement d'utilisation d'outil est rejoué à travers les 39 politiques intégrées **et** à travers 8 détecteurs réservés à l'audit, qui identifient des patterns non encore couverts par les politiques en temps réel. Les occurrences sont agrégées par politique / détecteur sur l'ensemble des sessions.
 
-## Options
+## Ce que vous obtenez
 
-| Option | Description |
-|------|-------------|
-| `--cli claude\|codex\|copilot\|cursor\|opencode\|pi\|gemini` | Restreindre à un ou plusieurs CLI (séparés par des espaces ou répétés). Par défaut : les 7. |
-| `--project <path>` | Restreindre aux sessions dont le `cwd` correspond à ce chemin. Peut être répété. |
-| `--since 7d\|30d\|2026-04-01` | Uniquement les sessions dont le mtime de la transcription se situe dans la fenêtre temporelle. |
-| `--policy <name>` | Restreindre à une politique ou un nom de détecteur. Peut être répété. |
-| `--limit N` | Les N premières lignes du tableau (par défaut : 20). |
-| `--show-examples` | Inclure un exemple de commande par ligne dans le tableau. |
-| `--report <path>` | Chemin du rapport Markdown (par défaut : `./failproofai-audit.md`). |
-| `--no-report` | Ne pas générer le rapport Markdown. |
-| `--json` | Afficher le JSON sur stdout au lieu du tableau. Implique `--no-report` sauf si `--report` est également précisé. |
-| `--no-cache` | Contourner le cache de résultats par transcription situé dans `~/.failproofai/cache/audit/`. |
+La page `/audit` est composée de six sections :
 
-## Détecteurs exclusifs à l'audit
+1. **Identité** — votre agent classifié dans l'un des 8 archétypes (`optimist`, `cowboy`, `explorer`, `goldfish`, `paranoid architect`, `precision builder`, `hammer`, `ghost`) en fonction du signal pondéré sur l'ensemble des transcriptions auditées.
+2. **Points forts** — chiffres réels issus de l'analyse (% d'appels propres, "0 fuite de credentials", etc.) conditionnés par le déclenchement effectif des politiques de sanitisation concernées.
+3. **Score** — de 0 à 100 avec des niveaux S/A/B/C/D/F et une estimation de l'amélioration projetée si toutes les politiques recommandées étaient activées.
+4. **Résultats** — fiches par politique indiquant ce qui s'est passé, le coût, les preuves capturées, et la commande exacte `failproofai policy add <slug>` pour activer le builtin en temps réel qui aurait détecté le problème.
+5. **Politiques prescrites** — liste d'installation agrégée avec une commande `failproofai policies --install` en une seule étape.
+6. **Rappel de ré-audit** — « revenez avec de meilleurs résultats ». Programmez un rappel par e-mail dans 7 jours via l'api-server (connexion requise ; voir [`failproofai auth`](/fr/cli/auth)).
 
-Ces détecteurs identifient des patterns de comportement inefficace qui ne sont pas (encore) appliqués en temps réel. Ils ne s'exécutent que lors de l'`audit` et ne bloquent jamais un appel d'outil en production.
+## Détecteurs réservés à l'audit
 
-| Détecteur | Ce qu'il comptabilise |
+Ces détecteurs identifient des patterns de comportements sous-optimaux qui ne sont pas (encore) appliqués en temps réel. Ils s'exécutent uniquement lors de l'audit et ne bloquent jamais un appel d'outil en direct.
+
+| Détecteur | Ce qu'il compte |
 |---|---|
 | `redundant-cd-cwd` | Commandes Bash commençant par `cd <cwd> && …` alors que les commandes s'exécutent déjà dans `cwd`. |
-| `prefer-edit-over-read-cat` | `cat`/`head`/`tail`/`less`/`more` sur un seul fichier source — utilisez plutôt l'outil `Read`. |
-| `prefer-edit-over-sed-awk` | Modifications en place avec `sed -i` / `awk … > file` — utilisez plutôt l'outil `Edit`. |
-| `prefer-write-over-heredoc` | Écriture de fichiers par heredoc / `echo > file` multi-lignes — utilisez plutôt l'outil `Write`. |
-| `sleep-polling-loop` | `sleep N` long (≥ 30s) ou boucles de polling `while …; sleep …; done`. |
+| `prefer-edit-over-read-cat` | `cat`/`head`/`tail`/`less`/`more` sur un seul fichier source — utilisez l'outil `Read` à la place. |
+| `prefer-edit-over-sed-awk` | Modifications en place `sed -i` / `awk … > file` — utilisez l'outil `Edit` à la place. |
+| `prefer-write-over-heredoc` | Écriture de fichiers via heredoc / `echo > file` multi-lignes — utilisez l'outil `Write` à la place. |
+| `sleep-polling-loop` | Longues pauses `sleep N` (≥ 30s) ou boucles de polling `while …; sleep …; done`. |
 | `find-from-root` | `find /`, `find /home`, `find /usr`, etc. — limitez la portée à `cwd`. |
-| `git-commit-no-verify` | `git commit … --no-verify` / `-n`, qui contourne les hooks. |
-| `reread-after-edit` | `Read` d'un fichier qui vient d'être modifié via `Edit`/`Write` dans la même session. |
+| `git-commit-no-verify` | `git commit … --no-verify` / `-n`, en contournant les hooks. |
+| `reread-after-edit` | Lecture (`Read`) d'un fichier qui vient d'être modifié via `Edit`/`Write` dans la même session. |
 
-## Sortie
+## Caches
 
-La sortie par défaut est un tableau ANSI sur stdout ainsi qu'un rapport Markdown structuré dans `./failproofai-audit.md`. Les deux regroupent les correspondances par catégorie (Sanitize / Wasteful / Risky / …) avec le nombre de correspondances, le nombre de projets concernés et jusqu'à trois exemples de commandes par ligne.
-
-`--json` produit une sortie lisible par machine :
-
-```json
-{
-  "version": 1,
-  "scannedAt": "2026-05-21T...",
-  "scope": { "cli": [...], "projects": "all", "since": null },
-  "transcripts": { "scanned": 4187, "skipped": 0, "errors": 0, "durationMs": 12345 },
-  "results": [
-    {
-      "name": "failproofai/protect-env-vars",
-      "source": "builtin",
-      "category": "Environment",
-      "hits": 428,
-      "projects": 142,
-      "firstSeen": "...",
-      "lastSeen": "...",
-      "examples": [{ "sessionId": "...", "cwd": "...", "timestamp": "...", "example": "env" }]
-    }
-  ],
-  "totals": { "hits": 1398, "projectsWithHits": 392 }
-}
-```
-
-## Exemples
-
-```bash
-# Analyser tout ce qui concerne chaque CLI sur cette machine
-failproofai audit
-
-# Uniquement les 30 derniers jours, Claude uniquement
-failproofai audit --cli claude --since 30d
-
-# Afficher des exemples pour les correspondances les plus fréquentes
-failproofai audit --show-examples --limit 10
-
-# Examiner en détail une politique spécifique
-failproofai audit --policy protect-env-vars --policy block-force-push
-
-# Sortie lisible par machine
-failproofai audit --json > audit.json
-```
+- **Cache par transcription** dans `~/.failproofai/cache/audit/<sha1>.json`, indexé par `(mtime, size, engineVersion, detectorVersion)`. Invalidé automatiquement lors de modifications du code des politiques ou des détecteurs.
+- **Cache du résultat global** dans `~/.failproofai/audit-dashboard.json` (mode 0600). Permet au tableau de bord de s'afficher instantanément à la navigation sans relancer l'analyse. Cliquez sur `[ re-audit now ]` depuis le tableau de bord pour forcer une actualisation.
 
 ## Remarques
 
-- **Cache.** Les résultats par transcription sont mis en cache dans `~/.failproofai/cache/audit/<sha1>.json`, indexés par `(mtime, size, engineVersion, detectorVersion)`. Le cache est automatiquement invalidé lorsque le code des politiques ou des détecteurs change.
-- **Aucune mutation.** L'audit se rejoue en mode lecture seule. `warn-repeated-tool-calls` est ignoré car son fichier sidecar par session serait sinon modifié.
-- **Politiques de workflow ignorées.** Les politiques `require-*-before-stop` se déclenchent uniquement sur les événements `Stop` et exécutent `execSync` sur l'état git en cours — elles n'ont pas d'interprétation significative du type « que se serait-il passé en 2025 », et n'apparaissent donc pas dans les comptages de l'audit.
-- **Politiques personnalisées ignorées.** Les hooks personnalisés fournis par l'utilisateur ne sont pas rejoués (ils ont pu évoluer depuis la session d'origine).
+- **Aucune mutation.** L'audit s'exécute en mode lecture seule. `warn-repeated-tool-calls` est ignoré car son sidecar par session serait autrement modifié.
+- **Politiques de workflow ignorées.** Les politiques `require-*-before-stop` se déclenchent uniquement sur les événements `Stop` et via `execSync` sur l'état git en direct — elles n'ont pas d'interprétation pertinente dans un contexte de rejoue historique, et n'apparaissent donc pas dans les comptages d'audit.
+- **Politiques personnalisées ignorées.** Les hooks personnalisés fournis par l'utilisateur ne sont pas rejoués (ils peuvent avoir évolué depuis la session d'origine).

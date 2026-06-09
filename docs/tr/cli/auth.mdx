@@ -1,0 +1,87 @@
+---
+title: Oturum aç
+description: "FailproofAI'ye CLI'dan oturum açarak anımsatıcıları ve kişiselleştirilmiş özellikleri etkinleştirin"
+---
+
+```bash
+failproofai auth login    # email + one-time code
+failproofai auth logout   # revoke this session
+failproofai auth whoami   # print the signed-in identity
+```
+
+Eski `--login` / `--logout` / `--whoami` bayrak biçimi hâlâ geriye uyumluluk için takma ad olarak kabul edilmektedir.
+
+Kimlik doğrulama isteğe bağlıdır. İlkeler, gösterge paneli, `/audit` sayfası ve diğer tüm yerel özellikler oturum açmış olsanız da olmasanız da tamamen aynı şekilde çalışır. Oturum açma sayfası, **gerektiğinde** sabit bir kimlik gerektiren özelliklerin (bugün yeniden denetim anımsatıcıları, gelecekte daha fazlası) bir tutturacak noktasına sahip olması için mevcuttur.
+
+## Oturum açma akışı
+
+```bash
+failproofai auth login
+```
+
+E-posta adresinizi istenir, bu adrese 6 haneli tek kullanımlık bir kod gönderilir, kod için istenir ve başarı durumunda `~/.failproofai/auth.json` dosyasını yazar (`0600` modu). Aynı oturum daha sonra uygulama içi gösterge panelinde görünür — `/audit` sayfasında `[ set a reminder ]` düğmesine tıklamak sizi oturum açmış olarak gösterir.
+
+Gösterge paneli, CLI'ya hiç dokunmayan kullanıcılar için `/audit` sayfasında bu akışı modal diyalog olarak sunar.
+
+## Oturum kapatma
+
+```bash
+failproofai auth logout
+```
+
+Geçerli oturumu sunucuda iptal eder ve `~/.failproofai/auth.json` dosyasını siler. API sunucusuna ulaşılamazsa, yerel dosya yine de kaldırılır — yerel olarak oturum kapatma niyeti her zaman öncelik alır.
+
+## Kimlik kontrolü
+
+```bash
+failproofai auth whoami
+```
+
+Geçerli bir oturum olduğunda `<email> (<user uuid>)` yazdırır ve 0 ile çıkar, aksi takdirde `not signed in` yazdırır ve 1 ile çıkar. Erişim belirteci sona ermeye 1 dakika kalmışsa arka planda sessizce yeniler.
+
+## Kalıcı yeniden denetim anımsatıcısı
+
+`/audit` sayfasında **`[ set a reminder ]`** düğmesine tıkladığınızda (veya düğmenin kapılarından geçerek modal aracılığıyla oturum açtığınızda), gösterge paneli `~/.failproofai/next-audit.json` konumunda küçük bir yardımcı dosya yazar:
+
+```json
+{
+  "next_audit_at": 1780765200,
+  "user_email": "you@example.com",
+  "set_at": 1780160574
+}
+```
+
+Bu dosya, ayarlandığı e-posta adresine kapsamlıdır — CLI oturumunu farklı bir hesaba değiştirmek, önceki kullanıcıya ait herhangi bir anımsatıcıyı gizler. Varsayılan fark **7 gündür**, zamanlayıcı geldiğinde daha sonra yapılandırılabilir. `auth.json` gibi `0600` izinleriyle oluşturulur.
+
+Gösterge panelinin `/api/auth/reminder` uç noktası `GET` (oku), `POST` (ayarla / yeniden zamanla) ve `DELETE` (temizle) işlemlerini sunar ve etkin bir oturum gerektirir.
+
+## `~/.failproofai/auth.json` dosyasında neler var
+
+```json
+{
+  "access_token": "eyJhbGc…",
+  "refresh_token": "9ede3e…",
+  "access_expires_at": 1780160574,
+  "refresh_expires_at": 1782748974,
+  "user": { "id": "<uuid>", "email": "you@example.com" }
+}
+```
+
+`0600` izinleriyle oluşturulur (yalnızca sahibi okuma/yazma). Erişim belirteci 1 saatlik HS256 JWT'sidir; yenileme belirteci, sunucunun `SHA-256(token)` olarak depoladığı opak 256 bit rastgele bir dizedir. Yenileme belirteci tekrarı sunucu tarafında algılanır ve kullanıcı için tüm oturumları iptal eder.
+
+## Ortam değişkenleri
+
+| Değişken | Varsayılan | Amaç |
+|---|---|---|
+| `FAILPROOF_API_URL` | `https://api.befailproof.ai` | API sunucusu temel URL'sini geçersiz kılın. Kendi barındırılan API sunucusuna karşı yerel geliştirme için yararlıdır. |
+| `FAILPROOFAI_AUTH_DIR` | `~/.failproofai` | `auth.json` dosyasının saklandığı konumu geçersiz kılın. Çoğunlukla testler için. |
+
+Tam listeyi [Ortam değişkenleri](/tr/cli/environment-variables) bölümünde görmek için.
+
+## Sorun giderme
+
+**"Could not reach the api-server"** — CLI, `FAILPROOF_API_URL` adresine TCP bağlantısı açamıyor. Ağ bağlantınızı kontrol edin veya kendi barındırılan API sunucusu çalıştırıyorsanız `FAILPROOF_API_URL` ayarlayın.
+
+**"Rate limited"** — o e-posta adresi için 15 dakikalık bir pencere içinde çok fazla oturum açma denemesi (5/e-posta) veya IP (20/IP), ya da önceki istek sonrasında aynı e-posta için 30 saniyelik yeniden gönderme bekleme süresi. Hata iletisi, yeniden deneme süresini saniye cinsinden içerir.
+
+**Code rejected** — OTP yanlış, süresi dolmuş veya satır 5 yanlış tahminde kilitlenmiş. Yeni bir kod istemek için `failproofai auth login` komutunu çalıştırın.
