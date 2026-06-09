@@ -2,6 +2,9 @@
 
 ## 0.0.11-beta.3 — 2026-05-28
 
+### Dependencies
+- Swap the Vitest DOM environment from `happy-dom` to `jsdom` (`vitest.config.mts`, `package.json`, 15 `docs/*/testing.mdx`). happy-dom is single-maintainer and had a 2024 critical CVE; jsdom has 6 maintainers, ~7× the weekly downloads, and a perfect Snyk maintenance score. Test suite (1691 tests across 82 files) stays green on jsdom (#419).
+
 ### Fixes
 - Treat GitHub `neutral` check-run conclusions as non-failing in the `require-ci-green-before-stop` policy (e.g. Socket Security: Pull Request Alerts when the head branch is from an outside contributor and Socket can't process it). Previously the policy treated anything other than `success` / `skipped` / `cancelled` as failing, producing false-positive Stop blocks on PRs whose only "non-green" check was an explicit `neutral` (#410).
 - Fix the `bump-platform-submodule.yml` workflow's first post-merge push, which failed with `fatal: could not read Username for 'https://github.com'`. The `persist-credentials: false` hardening from #394 left the cross-repo `git push`/`fetch` unauthenticated, and the inline `Authorization: bearer …` extraheader only authenticates GitHub's REST API — git-over-HTTPS smart-protocol expects Basic auth with `x-access-token:<pat>`. Switch to a base64-encoded Basic header (matching `actions/checkout`'s own internal extraheader format) so the push and the rebase-and-retry fetch in the loop both authenticate (#395).
