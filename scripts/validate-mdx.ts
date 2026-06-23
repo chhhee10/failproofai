@@ -78,6 +78,19 @@ export async function findMdxParseError(
   }
 }
 
+/**
+ * Percent-encode a value for a GitHub Actions workflow command. Without this a
+ * multi-line MDX error message would be truncated at its first newline (and a
+ * literal `%` could mis-parse) when emitted as an `::error::` annotation.
+ * https://docs.github.com/actions/reference/workflow-commands-for-github-actions
+ */
+export function encodeAnnotation(value: string): string {
+  return value
+    .replace(/%/g, "%25")
+    .replace(/\r/g, "%0D")
+    .replace(/\n/g, "%0A");
+}
+
 function collectMdxFiles(dir: string): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(dir)) {
@@ -114,7 +127,9 @@ async function main(): Promise<void> {
     const loc =
       (error.line ? `,line=${error.line}` : "") +
       (error.column ? `,col=${error.column}` : "");
-    console.log(`::error file=${file}${loc}::MDX parse error: ${error.message}`);
+    console.log(
+      `::error file=${encodeAnnotation(file)}${loc}::MDX parse error: ${encodeAnnotation(error.message)}`,
+    );
   }
   process.exitCode = 1;
 }

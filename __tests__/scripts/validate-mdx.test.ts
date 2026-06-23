@@ -1,6 +1,10 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
-import { findMdxParseError, stripFrontmatter } from "@/scripts/validate-mdx";
+import {
+  encodeAnnotation,
+  findMdxParseError,
+  stripFrontmatter,
+} from "@/scripts/validate-mdx";
 
 describe("stripFrontmatter", () => {
   it("blanks a leading frontmatter block while preserving line numbers", () => {
@@ -15,6 +19,21 @@ describe("stripFrontmatter", () => {
   it("leaves content without frontmatter untouched", () => {
     const src = `# Title\n\nSome prose.\n`;
     expect(stripFrontmatter(src)).toBe(src);
+  });
+});
+
+describe("encodeAnnotation", () => {
+  it("percent-encodes newlines, carriage returns, and percent signs", () => {
+    expect(encodeAnnotation("line one\nline two")).toBe("line one%0Aline two");
+    expect(encodeAnnotation("a\r\nb")).toBe("a%0D%0Ab");
+    // `%` must be encoded first so the escapes above aren't double-encoded.
+    expect(encodeAnnotation("100% sure")).toBe("100%25 sure");
+  });
+
+  it("leaves a plain single-line message untouched", () => {
+    expect(encodeAnnotation("Expected a closing tag for `<slug>`")).toBe(
+      "Expected a closing tag for `<slug>`",
+    );
   });
 });
 
