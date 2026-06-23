@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.11-beta.11 — 2026-06-23
+
+### Features
+- Add a PR-level MDX parse check (`bun run validate:mdx`, wired into the CI `docs` job) that compiles every `docs/**/*.mdx` with the same MDX engine Mintlify runs at deploy time. `mintlify validate` only checks `docs.json` structure and nav links — it never parses page content — so syntax errors slipped through to the post-merge deploy. This catches them on the PR instead (#455).
+
+### Fixes
+- Fix three translated docs pages that failed the Mintlify deploy parse. `docs/tr/cli/audit.mdx` had a dropped closing backtick that pushed `<slug>` out of its inline-code span (parsed as an unclosed JSX tag); `docs/ja/built-in-policies.mdx` and `docs/zh/built-in-policies.mdx` carried translator-injected `{#id}` heading anchors that MDX reads as JS expressions. All three now match the other 12 locales (#455).
+
+### Dependencies
+- Add `@mdx-js/mdx` as a dev dependency, used by the new `validate:mdx` docs parse check (#455).
+
 ## 0.0.11-beta.10 — 2026-06-23
 
 ### Features
