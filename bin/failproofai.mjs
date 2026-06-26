@@ -190,7 +190,7 @@ EXAMPLES
 
 LINKS
   ⭐ Star us:      https://github.com/failproofai/failproofai
-  📖 Docs:         https://befailproof.ai
+  📖 Docs:         https://docs.befailproof.ai/introduction
   💬 Discord:      https://discord.gg/2zjBZP7yQJ
 `.trimStart());
     process.exit(0);
@@ -474,7 +474,11 @@ EXAMPLES
     lastSubcommand = "auth";
     const { runAuthCli } = await import("../src/auth/cli");
     await runAuthCli(args.slice(1));
-    await track("cli_auth_invoked", { args_count: args.length - 1 });
+    await track("cli_auth_invoked", {
+      args_count: args.length - 1,
+      subcommand: args[1] ?? "help",
+      exit_code: process.exitCode ?? 0,
+    });
     process.exit(process.exitCode ?? 0);
   }
 
