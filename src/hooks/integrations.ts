@@ -232,10 +232,9 @@ export const claudeCode: Integration = {
 //   • Settings paths: ~/.codex/hooks.json (user) and <cwd>/.codex/hooks.json (project)
 //   • Stdin event names arrive snake_case (pre_tool_use); we canonicalize to PascalCase before policy lookup
 //   • No "local" scope
-//   • Settings file carries a top-level "version": 1 marker
+//   • Settings file does NOT carry a top-level "version" marker (Codex strictly expects only `hooks`)
 
 interface CodexSettingsFile {
-  version?: number;
   hooks?: Record<string, ClaudeHookMatcher[]>;
   [key: string]: unknown;
 }
@@ -262,7 +261,8 @@ export const codex: Integration = {
 
   readSettings(settingsPath) {
     const raw = readJsonFile(settingsPath);
-    if (raw.version === undefined) raw.version = 1;
+    // Remove version if it was injected by an older version of failproofai
+    if ("version" in raw) delete raw.version;
     return raw;
   },
 
@@ -290,7 +290,8 @@ export const codex: Integration = {
 
   writeHookEntries(settings, binaryPath, scope) {
     const s = settings as CodexSettingsFile;
-    if (s.version === undefined) s.version = 1;
+    // Remove version if it was injected by an older version of failproofai
+    if ("version" in s) delete s.version;
     if (!s.hooks) s.hooks = {};
 
     for (const eventType of CODEX_HOOK_EVENT_TYPES) {

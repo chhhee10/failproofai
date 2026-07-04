@@ -220,16 +220,16 @@ describe("OpenAI Codex integration", () => {
       // Snake-case keys must NOT be present (Codex stores under Pascal)
       expect(hooks[snake]).toBeUndefined();
     }
-    // Settings file carries version: 1
-    expect(settings.version).toBe(1);
+    // Settings file does NOT carry version (Codex strictly expects only `hooks`)
+    expect(settings.version).toBeUndefined();
   });
 
-  it("readSettings backfills version: 1 on existing files without it", () => {
+  it("readSettings removes version on existing files if present", () => {
     const settingsPath = resolve(tempDir, ".codex", "hooks.json");
     mkdirSync(resolve(tempDir, ".codex"), { recursive: true });
-    writeFileSync(settingsPath, JSON.stringify({ hooks: {} }));
+    writeFileSync(settingsPath, JSON.stringify({ version: 1, hooks: {} }));
     const read = codex.readSettings(settingsPath);
-    expect(read.version).toBe(1);
+    expect(read.version).toBeUndefined();
   });
 
   it("re-running writeHookEntries is idempotent", () => {
