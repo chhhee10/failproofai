@@ -285,8 +285,10 @@ export const codex: Integration = {
         : `"${binaryPath}" --hook ${eventType} --cli codex`;
     return {
       type: "command",
+      // Codex reads `timeout` in SECONDS (its `timeout_sec` field, default 600) —
+      // NOT milliseconds like Claude/Cursor/Gemini. 60 = 60s, not 60000ms (~16.7h).
       command,
-      timeout: 60_000,
+      timeout: 60,
       [FAILPROOFAI_HOOK_MARKER]: true,
     };
   },

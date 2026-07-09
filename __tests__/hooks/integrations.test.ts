@@ -204,6 +204,12 @@ describe("OpenAI Codex integration", () => {
     expect(entry[FAILPROOFAI_HOOK_MARKER]).toBe(true);
   });
 
+  it("buildHookEntry sets timeout in SECONDS (60), not milliseconds", () => {
+    // Codex reads `timeout` as seconds (its `timeout_sec` field); 60000 would be ~16.7h.
+    const entry = codex.buildHookEntry("/usr/bin/failproofai", "pre_tool_use", "user");
+    expect(entry.timeout).toBe(60);
+  });
+
   it("project scope uses npx -y failproofai", () => {
     const entry = codex.buildHookEntry("/usr/bin/failproofai", "pre_tool_use", "project");
     expect(entry.command).toBe("npx -y failproofai --hook pre_tool_use --cli codex");

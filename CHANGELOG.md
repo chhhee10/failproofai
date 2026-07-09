@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.12-beta.0 — 2026-07-09
+
+### Fixes
+- Codex hooks: drop the invalid top-level `version` field from `.codex/hooks.json` (Codex CLI v0.142+ rejects it with `unknown field 'version'`, refusing to start any session), and strip any leftover `version` on the next install/uninstall so previously-broken configs self-heal. Also correct the Codex `timeout` unit from `60000` to `60` — Codex reads `timeout` in seconds (its `timeout_sec` field), so the old value meant ~16.7h instead of 60s. Copilot and Cursor legitimately carry `version: 1` in their own schemas and are untouched.
+
 ## 0.0.11 — 2026-06-26
 
 ### Breaking
