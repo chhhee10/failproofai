@@ -224,11 +224,18 @@ describe("OpenAI Codex integration", () => {
     expect(settings.version).toBeUndefined();
   });
 
-  it("readSettings removes version on existing files if present", () => {
+  it("writeHookEntries removes version on existing files if present", () => {
+    const settings: Record<string, unknown> = { version: 1, hooks: {} };
+    codex.writeHookEntries(settings, "/usr/bin/failproofai", "user");
+    expect(settings.version).toBeUndefined();
+  });
+
+  it("removeHooksFromFile removes version on existing files even if no failproofai hooks are present", () => {
     const settingsPath = resolve(tempDir, ".codex", "hooks.json");
     mkdirSync(resolve(tempDir, ".codex"), { recursive: true });
     writeFileSync(settingsPath, JSON.stringify({ version: 1, hooks: {} }));
-    const read = codex.readSettings(settingsPath);
+    codex.removeHooksFromFile(settingsPath);
+    const read = JSON.parse(readFileSync(settingsPath, "utf-8"));
     expect(read.version).toBeUndefined();
   });
 
