@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "bash": "node recorder.mjs SessionStart", "powershell": "node recorder.mjs SessionStart", "timeoutSec": 30 } ] }
+    ],
+    "SessionEnd": [
+      { "hooks": [ { "type": "command", "bash": "node recorder.mjs SessionEnd", "powershell": "node recorder.mjs SessionEnd", "timeoutSec": 30 } ] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "bash": "node recorder.mjs UserPromptSubmit", "powershell": "node recorder.mjs UserPromptSubmit", "timeoutSec": 30 } ] }
+    ],
+    "PreToolUse": [
+      { "hooks": [ { "type": "command", "bash": "node recorder.mjs PreToolUse", "powershell": "node recorder.mjs PreToolUse", "timeoutSec": 30 } ] }
+    ],
+    "PostToolUse": [
+      { "hooks": [ { "type": "command", "bash": "node recorder.mjs PostToolUse", "powershell": "node recorder.mjs PostToolUse", "timeoutSec": 30 } ] }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command", "bash": "node recorder.mjs Stop", "powershell": "node recorder.mjs Stop", "timeoutSec": 30 } ] }
+    ],
+    "SubagentStop": [
+      { "hooks": [ { "type": "command", "bash": "node recorder.mjs SubagentStop", "powershell": "node recorder.mjs SubagentStop", "timeoutSec": 30 } ] }
+    ],
+    "PermissionRequest": [
+      { "hooks": [ { "type": "command", "bash": "node recorder.mjs PermissionRequest", "powershell": "node recorder.mjs PermissionRequest", "timeoutSec": 30 } ] }
+    ],
+    "ErrorOccurred": [
+      { "hooks": [ { "type": "command", "bash": "node recorder.mjs ErrorOccurred", "powershell": "node recorder.mjs ErrorOccurred", "timeoutSec": 30 } ] }
+    ],
+    "Notification": [
+      { "hooks": [ { "type": "command", "bash": "node recorder.mjs Notification", "powershell": "node recorder.mjs Notification", "timeoutSec": 30 } ] }
+    ]
+  }
+}
